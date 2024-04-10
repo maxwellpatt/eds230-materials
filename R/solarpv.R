@@ -12,6 +12,10 @@
 #' @param etype "both" uses both direct and diffuse, "direct' direct only, "diffuse" diffuse only default="both"
 #' @author Naomi
 #' @return annual (power for each year), avg (average power) (see eunits for units)
+#' 
+
+library(dplyr)
+library(tidyverse)
 
 solarpv = function(area, eff=0.8, PR=0.75, solar, clr="blue", eunits="J", etype="both",g=TRUE, ethresh=10000) {
 
@@ -55,8 +59,9 @@ solarpv = function(area, eff=0.8, PR=0.75, solar, clr="blue", eunits="J", etype=
   }
 
   # plot if users requested
-  if (g)
+  if (g) {
       barplot(annualsolar$elect, names=annualsolar$year, col=clr, ylab=ylbs, xlab="Year")
+    }
 
   return(list(annual=annualsolar[,c("year","elect")], mean=mean(annualsolar$elect)))
 
