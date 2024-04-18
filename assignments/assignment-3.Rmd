@@ -1,205 +1,170 @@
 ---
-title: "Almost Profits"
+title: "Almond Profits"
 author: "Fletcher McConnell and Maxwell Patterson"
-date: 2024-04-11
+date: "2024-04-17"
 ---
-
-https://www.cbsnews.com/sacramento/news/costs-crippling-californias-almond-crop/#:~:text=Two%20years%20ago%2C%20almonds%20went,pound%20to%20make%20a%20profit.
-
-Article says farmers need to sell almonds between 1.80 and 2.00 a pound to make profit
-
-### Cost Breakdown
-Water costs: 20-25% of total cost
-Labor costs: 30-35% of total cost
-Infrastructure and equipment costs: 15-20% of total cost
-Material costs: 20-25% of total cost
-Other costs: 5-10% of total cost
-
-## Simple Model
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
+library(purrr)
 library(ggpubr)
 library(tidyverse)
 library(dplyr)
 library(ggplot2)
-library(purrr)
 library(tidyr)
 library(here)
 ```
 
 ```{r}
-almond_profit <- function(yield_anomaly_df, base_yield, price, cost_per_acre, subsidy_per_acre) {
-  result <- yield_anomaly_df %>%
-    mutate(yield = base_yield + yield_anomaly,
-           revenue = yield * price,
-           profit = revenue - cost_per_acre + subsidy_per_acre)
-  return(result)
-}
-```
-
-
-
-```{r}
-n_samples <- 20
-price_range <- seq(2700, 3300, length.out = n_samples)
-cost_range <- seq(3800, 4300, length.out = n_samples)
-
-sensitivity_results <- crossing(price = price_range, cost_per_acre = cost_range) %>%
-  mutate(sensitivity_id = row_number()) %>%
-  crossing(yield_anom) %>%
-  mutate(base_yield = 1.5,  # Assume a base yield of 1.5 tons per acre
-         profit = almond_profit(tibble(year, yield_anomaly), base_yield, price, cost_per_acre, subsidy_per_acre = 500))
-
-sensitivity_results_unnested <- sensitivity_results %>%
-  unnest(profit, names_sep = "_")
-
-sensitivity_summary <- sensitivity_results_unnested %>%
-  group_by(price, cost_per_acre) %>%
-  summarise(mean_profit = mean(profit_profit, na.rm = TRUE),
-            min_profit = min(profit_profit, na.rm = TRUE),
-            max_profit = max(profit_profit, na.rm = TRUE))
+# Read in functions
+source(here("assignments/almond-yield.R"))
+source(here("assignments/profit-func.R"))
+print("Functions read in successfully!")
 ```
 
 
 ```{r}
-custom_theme <- theme(
-  plot.title = element_text(size = 16, face = "bold"),
-  axis.title = element_text(size = 14),
-  axis.text = element_text(size = 12),
-  legend.title = element_text(size = 14),
-  legend.text = element_text(size = 12),
-  panel.grid.major = element_line(color = "gray90"),
-  panel.grid.minor = element_blank(),
-  panel.background = element_rect(fill = "white")
+# Get almond anomaly dataframe ------
+# Read in climate data
+clim_df <- read.table(here("Data/clim.txt"), header=TRUE)
+
+# Define model parameters (from Table 2 in paper)
+model_params <- list(
+  intercept = 0.28,
+  a = -0.015,
+  b = -0.0046,
+  c = -0.07,
+  d = 0.0043
 )
 
-p1 <- ggplot(sensitivity_summary, aes(price, mean_profit, color = cost_per_acre)) +
-  geom_line() +
-  labs(x = "Price ($/ton)", y = "Mean Profit ($/acre)", color = "Cost per acre ($)") +
-  theme(legend.position = "bottom") +
-  custom_theme
+# Run function
+yields <- almond_model(clim_df, model_params)
 
-p2 <- ggplot(sensitivity_summary, aes(cost_per_acre, mean_profit, color = price)) +
-  geom_line() +
-  labs(x = "Cost per acre ($)", y = "Mean Profit ($/acre)", color = "Price ($/ton)") +
-  theme(legend.position = "bottom") +
-  custom_theme
-
-ggarrange(p1, p2, ncol = 2, widths = c(2, 2))
-
-# Save the plots as PNG images with a 16:5 ratio
-ggsave(here("images/plot1.png"), p1, width = 16, height = 5, dpi = 300)
-ggsave(here("images/plot2.png"), p2, width = 16, height = 5, dpi = 300)
+# Display summary stats of yield anomaly amounts
+print(summary(yields$yield_anomaly))
 ```
-
-
-## Complex Model
 
 ```{r}
-almond_profit_detailed <- function(yield_anomaly_df, base_yield, price, total_cost, subsidy_per_acre) {
-  water_cost <- total_cost * runif(1, 0.2, 0.25)
-  labor_cost <- total_cost * runif(1, 0.3, 0.35)
-  infrastructure_cost <- total_cost * runif(1, 0.15, 0.2)
-  material_cost <- total_cost * runif(1, 0.2, 0.25)
-  other_cost <- total_cost * runif(1, 0.05, 0.1)
-  
-  result <- yield_anomaly_df %>%
-    mutate(yield = base_yield + yield_anomaly,
-           revenue = yield * price,
-           profit = revenue - (water_cost + labor_cost + infrastructure_cost + material_cost + other_cost) + subsidy_per_acre)
-  return(result)
-}
+# Calculating profits by year with set parameters
+profits <- almond_profit_detailed(yields, base_yield = 1.5, price = 1000, total_cost = 3000, acres = 5)
+print(profits)
 ```
+
+
+We want to vary the price and cost of almonds per year. These values will vary depending on environmental and market tendencies.
 
 
 ```{r}
-# Define ranges for price and total cost
-price_range <- seq(1.3, 2, length.out = n_samples)
-total_cost_range <- seq(3500, 4200, length.out = n_samples)
+price_variations <- rnorm(mean=4000, sd = 200, n=20)
 
-sensitivity_results_detailed <- crossing(price = price_range, total_cost = total_cost_range) %>%
-  mutate(sensitivity_id = row_number()) %>%
-  crossing(yield_anom) %>%
-  mutate(base_yield = 1.5,
-         profit = almond_profit_detailed(tibble(year, yield_anomaly), base_yield, price, total_cost, subsidy_per_acre = 500))
+# Calculate profits for each price variation
+profit_distribution <- price_variations %>%
+  map(~almond_profit_detailed(yields, base_yield = 1.5, price = .x, total_cost = 3000, acres = 5))
 
-sensitivity_results_detailed_unnested <- sensitivity_results_detailed %>%
-  unnest(profit, names_sep = "_")
+# Extract annual profit data and reformat as a data frame
+annual_profit_data <- map_df(profit_distribution, `[`, c("profit"))
+profit_distribution_df <- data.frame(year = yields$year, 
+                                     net_profit = annual_profit_data$profit)
 
-sensitivity_summary_detailed <- sensitivity_results_detailed_unnested %>%
-  group_by(price, total_cost) %>%
-  summarise(mean_profit = mean(profit_profit, na.rm = TRUE),
-            min_profit = min(profit_profit, na.rm = TRUE),
-            max_profit = max(profit_profit, na.rm = TRUE))
+# Calculate average profits across price variations
+average_profit_by_year <- profit_distribution_df %>%
+  group_by(year) %>%
+  dplyr::summarize(mean_net_profit = mean(net_profit))
+
+# Plot the profit distribution
+ggplot(profit_distribution_df, aes(year, net_profit, group=year)) + 
+  geom_boxplot() + 
+  labs(y = "Net Profit ($)") +
+  geom_line(data=average_profit_by_year, aes(year, mean_net_profit, group=1), col="blue")
+
+# Calculate mean profit over all years for each price variation
+mean_profit_by_price = data.frame(price = price_variations, mean_net_profit = map_dbl(profit_distribution, ~mean(.x$profit)))
+
+# Plot the distribution of mean profits
+ggplot(mean_profit_by_price, aes(y = mean_net_profit)) + 
+  geom_boxplot() +
+  labs(y = "Net Profit ($)")
+
+# Plot the sensitivity of mean profit to price
+ggplot(mean_profit_by_price, aes(price, mean_net_profit)) + 
+  geom_point() +
+  labs(y = "Net Profit in Dollars", x = "Almond Production Price")
 ```
+
 
 
 ```{r}
+yield_variations <- rnorm(mean=1.5, sd = 0.3, n=20)
 
-custom_theme <- theme(
-  plot.title = element_text(size = 18, face = "bold"),
-  axis.title = element_text(size = 16),
-  axis.text = element_text(size = 14),
-  legend.title = element_text(size = 16),
-  legend.text = element_text(size = 14),
-  panel.grid.major = element_line(color = "gray90"),
-  panel.grid.minor = element_blank(),
-  panel.background = element_rect(fill = "white")
-)
+# Calculate profits for each yield variation
+yield_profit_distribution <- yield_variations %>%
+  map(~almond_profit_detailed(yields, base_yield = .x, price = 1000, total_cost = 3000, acres = 5))
 
-# Price vs. Mean Profit
-p1 <- ggplot(sensitivity_summary_detailed, aes(price, mean_profit, color = total_cost)) +
-  geom_line() +
-  labs(x = "Price ($/pound)", y = "Mean Profit ($/acre)", color = "Total Cost ($/acre)") +
-  theme(legend.position = "bottom") +
-  custom_theme
+# Extract annual profit data and reformat as a data frame
+annual_yield_profit_data <- map_df(yield_profit_distribution, `[`, c("profit"))
+yield_distribution_df <- data.frame(year = yields$year, 
+                                    net_profit = annual_yield_profit_data$profit)
 
-# Total Cost vs. Mean Profit
-p2 <- ggplot(sensitivity_summary_detailed, aes(total_cost, mean_profit, color = price)) +
-  geom_line() +
-  labs(x = "Total Cost ($/acre)", y = "Mean Profit ($/acre)", color = "Price ($/pound)") +
-  theme(legend.position = "bottom") +
-  custom_theme
+# Calculate average profits across yield variations
+average_yield_profit_by_year <- yield_distribution_df %>% 
+  group_by(year) %>% 
+  dplyr::summarize(mean_net_profit = mean(net_profit))
 
-# Water Cost vs. Mean Profit
-p3 <- ggplot(sensitivity_summary_detailed, aes(total_cost * 0.2, mean_profit, color = price)) +
-  geom_line() +
-  labs(x = "Water Cost ($/acre)", y = "Mean Profit ($/acre)", color = "Price ($/pound)") +
-  theme(legend.position = "bottom") +
-  custom_theme
+# Plot the profit distribution
+ggplot(yield_distribution_df, aes(year, net_profit, group=year)) + 
+  geom_boxplot() + 
+  labs(y = "Net Profit ($)") +
+  geom_line(data=average_yield_profit_by_year, aes(year, mean_net_profit, group=1), col="blue")
 
-# Labor Cost vs. Mean Profit
-p4 <- ggplot(sensitivity_summary_detailed, aes(total_cost * 0.3, mean_profit, color = price)) +
-  geom_line() +
-  labs(x = "Labor Cost ($/acre)", y = "Mean Profit ($/acre)", color = "Price ($/pound)") +
-  theme(legend.position = "bottom") +
-  custom_theme
+# Calculate mean profit over all years for each yield variation
+mean_profit_by_yield <- data.frame(yield = yield_variations, 
+                                   mean_net_profit = map_dbl(yield_profit_distribution, ~mean(.x$profit)))
 
-# Infrastructure Cost vs. Mean Profit
-p5 <- ggplot(sensitivity_summary_detailed, aes(total_cost * 0.15, mean_profit, color = price)) +
-  geom_line() +
-  labs(x = "Infrastructure Cost ($/acre)", y = "Mean Profit ($/acre)", color = "Price ($/pound)") +
-  theme(legend.position = "bottom") +
-  custom_theme
+# Plot the distribution of mean profits
+ggplot(mean_profit_by_yield, aes(y = mean_net_profit)) + 
+  geom_boxplot() +
+  labs(y = "Net Profit in Dollars")
 
-# Material Cost vs. Mean Profit
-p6 <- ggplot(sensitivity_summary_detailed, aes(total_cost * 0.2, mean_profit, color = price)) +
-  geom_line() +
-  labs(x = "Material Cost ($/acre)", y = "Mean Profit ($/acre)", color = "Price ($/pound)") +
-  theme(legend.position = "bottom") +
-  custom_theme
-
-# Other Cost vs. Mean Profit
-p7 <- ggplot(sensitivity_summary_detailed, aes(total_cost * 0.05, mean_profit, color = price)) +
-  geom_line() +
-  labs(x = "Other Cost ($/acre)", y = "Mean Profit ($/acre)", color = "Price ($/pound)") +
-  theme(legend.position = "bottom") +
-  custom_theme
-
-# Arrange and save the plots
-# ggarrange(p1, p2, p3, p4, p5, p6, p7, ncol = 2, nrow = 4, widths = c(2, 2), heights = c(1, 1, 1, 1))
-# ggsave(here("images/almond_profitability_plots.png"), width = 16, height = 20, dpi = 300)
+# Plot the sensitivity of mean profit to yield
+ggplot(mean_profit_by_yield, aes(yield, mean_net_profit)) + 
+  geom_point() +
+  labs(y = "Net Profit in Dollars", x = "Almond Yield in tons/acre")
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

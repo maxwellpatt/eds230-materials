@@ -1,6 +1,6 @@
 #' Compute Atmospheric Conductance
 #'
-#' THis function atmospheric conductance as a function of windspeed, and vegetation cahracteristics
+#' THis function atmospheric conductance as a function of windspeed, and vegetation characteristics
 #' @param       v windspeed (m/s)
 #' @param      height vegetation height (m)
 #' @param       zm measurement height of wind (m) (default 2m)

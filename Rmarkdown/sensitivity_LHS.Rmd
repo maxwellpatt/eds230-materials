@@ -192,3 +192,25 @@ plot(senresult_rank)
 
 
 ```
+
+# Correlation and Pcc for Minimum Yield
+```{r quantifying}
+# simple correlation coefficients
+result = map(parm, cor.test, y=yieldsd$minyield)
+result$Tmincoeff1
+result$Tmincoeff2
+result$Pcoeff1
+result$Pcoeff2
+result$intercep
+
+# just the confidence interval
+justconf = result %>% map_df("conf.int")
+justconf
+
+# partial regression rank coefficients
+
+senresult_rank = pcc(parm, yieldsd$minyield, rank=TRUE )
+senresult_rank
+plot(senresult_rank)
+```
+
