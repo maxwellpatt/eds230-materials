@@ -1,0 +1,118 @@
+---
+title: "Assignment 4"
+author: "Maxwell Patterson"
+date: "2024-04-25"
+---
+
+# Part 1
+Task: Write a paragraph describing how results of the sensitivity analysis reported on in the paper might contribute to understanding (or prediction) within an environmental problem solving or management context.
+
+Results from the building energy paper by Zeferina et al. aid in the understanding of a few key sectors of environmental management: optimizing building design, resilience planning, energy management strategies, policy development, and climate change adaptation. The study's identificaton of the most sensitive parameters affecting cooling demand and peak lodas in office buildings can help architects and engineers optimize build design for enhanced energy efficiency and reduced environmental impact. The insights gained from the sensitivity analysis can inform energy management strategies, enabling building operators to implement effective energy-saving strategies and optimize HVAC system optarion. Also, the findings can guide policy development related to build energy efficiency and sustainability, allowing policymakers to form regulations and incentives that promote energy-efficient building design and operation. Understanding the sensitivity of cooling demand to different climate types can also help in making buildings more adaptable to future climate scnearios by enhancing their resilience in the face of climate change.
+
+
+# Part 2
+
+```{r, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(sensitivity)
+library(tidyverse)
+library(gridExtra)
+library(purrr)
+library(ggpubr)
+```
+
+
+## Sensitivity Analysis of Atmospheric Conductance Model Setup
+```{r}
+set.seed(650)
+source("../R/Catm.R")
+
+np = 1000
+
+# Generate first sample (X1)
+k_o_1 = rnorm(mean = 0.1, sd = 0.1 * 0.01, n = np)
+k_d_1 = rnorm(mean = 0.7, sd = 0.7 * 0.01, n = np)
+v_1 = rnorm(mean = 300, sd = 50, n = np)
+height_1 = runif(min = 3.5, max = 5.5, n = np)
+X1 = cbind.data.frame(k_o = k_o_1, k_d = k_d_1, v = v_1, height = height_1)
+
+# Generate second sample (X2)
+k_o_2 = rnorm(mean = 0.1, sd = 0.1 * 0.01, n = np)
+k_d_2 = rnorm(mean = 0.7, sd = 0.7 * 0.01, n = np)
+v_2 = rnorm(mean = 300, sd = 50, n = np)
+height_2 = runif(min = 3.5, max = 5.5, n = np)
+X2 = cbind.data.frame(k_o = k_o_2, k_d = k_d_2, v = v_2, height = height_2)
+
+# Create Sobol sensitivity object
+sens_Catm_Sobol = sobolSalt(model = NULL, X1, X2, nboot = 100)
+```
+
+## Run Model and Compute Sobol Indices
+```{r}
+# Run model for all parameter sets
+parms = as.data.frame(sens_Catm_Sobol$X)
+colnames(parms) = colnames(X1)
+res = pmap_dbl(parms, Catm)
+sens_Catm_Sobol = sensitivity::tell(sens_Catm_Sobol, res, res.names = "ga")
+
+# Get main effect and total effect
+row.names(sens_Catm_Sobol$S) = colnames(parms)
+# sens_Catm_Sobol$S
+row.names(sens_Catm_Sobol$T) = colnames(parms)
+# sens_Catm_Sobol$T
+
+# Print main effect and total effect indices
+cat("\nMain Effect Indices:\n")
+print(sens_Catm_Sobol$S)
+
+cat("\nTotal Effect Indices:\n")
+print(sens_Catm_Sobol$T)
+
+print(sens_Catm_Sobol)
+```
+
+## Plotting Results
+
+```{r}
+# Combine parameters and model output
+both_params = cbind.data.frame(parms, gs = sens_Catm_Sobol$y)
+
+# Plot overall conductance sensitivity to uncertainty
+ggplot(both_params, aes(x = gs)) +
+  geom_histogram() +
+  geom_vline(xintercept = mean(both_params$gs), col = "cyan") +
+  labs(title = "Atmospheric Conductance Sensitivity to Uncertainty")
+
+# Plot conductance response to windspeed (most sensitive parameter)
+ggplot(both_params, aes(v, gs, col = height)) +
+  geom_point() +
+  labs(y = "Conductance (mm/s)", x = "Windspeed",
+       title = "Conductance Response to Windspeed")
+
+# Convert total_effects matrix to a named vector
+total_effects_vec <- setNames(sens_Catm_Sobol$T[,1], rownames(sens_Catm_Sobol$T))
+
+# Get the second most sensitive parameter
+second_sensitive_param <- names(sort(total_effects_vec, decreasing = TRUE))[2]
+
+# Print the second most sensitive parameter
+paste0("Second most sensitive parameter: ", second_sensitive_param)
+
+# Plot conductance response to the second most sensitive parameter
+ggplot(both_params, aes(x = .data[[second_sensitive_param]], y = gs, col = v)) +
+  geom_point() +
+  labs(y = "Conductance (mm/s)", x = second_sensitive_param,
+       title = paste("Conductance Response to", second_sensitive_param))
+```
+
+## Discussion
+
+The Sobol sensitivity analysis results show a significant change in the atmospheric conductance model's sensitivity to different parameters between the assignment and the in-class example. In this homework, with higher and more variable windspeeds (mean = 300 cm/s, sd = 50 cm/s) and shorter vegetation (height between 3.5 and 5.5 m), the total effect index for windspeed (v) is much higher (0.826545730) compared to the in-class example (0.195792945), where the windspeed was lower and less variable (mean = 250 cm/s, sd = 30 cm/s) and the vegetation was higher (height between 9.5 and 10.5 m). This tells us that windspeed has become the biggest factor influencing the variability in atmospheric conductance estimates in the assignment scenario. The sensitivity to vegetation height has increased here in the assignment (total effect index = 0.176405355) compared to the class example (total effect index = 0.004599674), telling us that height plays a more significant role in the assignment setting with shorter vegetation.
+
+The increased sensitivity to windspeed in the homework has implications on estimating atmospheric conductance in environments with high wind variability and shorter canopies. It shows the need for accurate measurements of windspeed distributions to reduce uncertainty when estimating conductance The higher sensitivity to vegetation height also says that efforts to measure and characterize canopy heights accurately can help to improve the precision of conductance predictions. Also, the comparison between the two settings reveals the importance of conducting site-specific sensitivity analyses to get a sense of how the model's sensitivity to different parameters can change depending on the conditions in a specific environment. This information can guide data collection strategies, model parameterization, and uncertainty determination efforts in various settings, allowing for more reliable and specific estimates of atmospheric conductance.
+
+
+
+
+
+

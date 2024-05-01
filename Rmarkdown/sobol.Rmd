@@ -5,7 +5,6 @@ date: '2022-04-26'
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
 library(sensitivity)
 library(tidyverse)
 library(gridExtra)
@@ -48,7 +47,7 @@ Generation of parameter sets slightly different
 #  Example 
 Atmospheric Conductance as a function of windspeed, vegetation height and parameters
 
-```{r, setup}
+```{r  }
 source("../R/Catm.R")
 
 # generate two examples of random number from parameter distributions

@@ -1,0 +1,216 @@
+---
+title: "Low stream flow duration performance metrics"
+author: "Maxwell Patterson and Fletcher McConnell"
+date: "2024-04-30"
+output: html_document
+---
+
+```{r, include=FALSE}
+# Load required libraries
+library(sensitivity)
+library(tidyverse)
+library(purrr)
+library(ggpubr)
+library(patchwork)
+```
+
+
+
+```{r}
+# Load data
+sager <- read.table("../Data/sager.txt", header = T)
+sager <- sager %>% mutate(date = paste(day, month, year, sep = "/"))
+sager$date <- as.Date(sager$date, "%d/%m/%Y")
+```
+
+```{r}
+# Load the custom functions
+source("../assignments/compute_lowflowduration.R")
+source("../assignments/compute_lowflowduration_all.R")
+```
+
+```{r}
+# Split-sample calibration
+msage <- read.table("../Data/sagerm.txt", header = T)
+nsim <- ncol(msage)
+snames <- sprintf("S%d", seq(from = 1, to = nsim))
+colnames(msage) <- snames
+msage$date <- sager$date
+msage$month <- sager$month
+msage$year <- sager$year
+msage$day <- sager$day
+msage$wy <- sager$wy
+msage <- left_join(msage, sager[, c("obs", "date")], by = c("date"))
+```
+
+```{r}
+# Subset for split-sample calibration 
+short_msage <- subset(msage, wy < 1980)
+```
+
+
+```{r}
+# Compute performance measures for output from all parameters using the custom function
+res <- short_msage %>%
+  select(-date, -month, -day, -year, -wy, -obs) %>%
+  map_df(compute_lowflowduration_all, o = short_msage$obs, month = short_msage$month,
+         day = short_msage$day, year = short_msage$year, wy = short_msage$wy)
+
+# Add a row that links with simulation number
+res$sim <- snames
+
+# Graph range of performance measures
+resl <- res %>% 
+  pivot_longer(-sim, names_to = "metric", values_to = "value")
+
+ggplot(resl, aes(x = metric, y = value)) +
+  geom_boxplot() +
+  facet_wrap(~metric, scales = "free") +
+  labs(x = "Metric", y = "Value", title = "Range of Performance Measures") +
+  theme_minimal()
+```
+
+```{r}
+# Select the best and worst parameter sets based on the combined metric
+best <- res[which.max(res$combined_metric), ]
+worst <- res[which.min(res$combined_metric), ]
+
+# Create a data frame for comparing runs
+compruns <- msage %>% 
+  select(best$sim, worst$sim, date, obs, month, day, year, wy)
+
+# Plot the streamflow for the best and worst parameter sets
+ggplot(compruns, aes(x = date)) +
+  geom_line(aes(y = compruns[, best$sim], color = "Best"), size = 1) +
+  geom_line(aes(y = compruns[, worst$sim], color = "Worst"), size = 1) +
+  geom_line(aes(y = obs, color = "Observed"), size = 1, linetype = "dashed") +
+  labs(x = "Date", y = "Streamflow", 
+       title = "Streamflow Comparison: Best vs Worst Parameter Sets") +
+  scale_color_manual(name = "Data", 
+                     values = c("Best" = "blue", "Worst" = "red", "Observed" = "black"),
+                     labels = c("Best Parameter Set", "Worst Parameter Set", "Observed")) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+# Compare the performance of best and worst parameter sets for April streamflow
+aprflow <- compruns %>% 
+  filter(month == 4)
+
+ggplot(aprflow, aes(x = date)) +
+  geom_line(aes(y = aprflow[, best$sim], color = "Best"), size = 1) +
+  geom_line(aes(y = aprflow[, worst$sim], color = "Worst"), size = 1) +
+  geom_line(aes(y = obs, color = "Observed"), size = 1, linetype = "dashed") +
+  labs(x = "Date", y = "April Streamflow", 
+       title = "April Streamflow Comparison: Best vs Worst Parameter Sets") +
+  scale_color_manual(name = "Data", 
+                     values = c("Best" = "blue", "Worst" = "red", "Observed" = "black"),
+                     labels = c("Best Parameter Set", "Worst Parameter Set", "Observed")) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+
+## Plotting
+
+```{r}
+## Pre calibration
+compruns_pre <- subset(compruns, wy < 1980)
+compruns_mwy_pre <- compruns_pre %>%
+  select(-c(day, date, year)) %>%
+  group_by(month, wy) %>%
+  summarize(across(everything(), mean))
+
+compruns_mwy_pre <- compruns_mwy_pre %>%
+  pivot_longer(cols = !c(month, wy), names_to = "sim", values_to = "flow")
+
+pre <- compruns_mwy_pre %>%
+  subset(month == 8) %>%
+  ggplot(aes(x = sim, y = flow)) +
+  geom_boxplot() +
+  labs(title = "Pre-Calibration", x = "Parameter Set", y = "April Streamflow") +
+  theme_minimal()
+
+## Post calibration
+compruns_post <- subset(compruns, wy > 1980)
+compruns_mwy_post <- compruns_post %>%
+  select(-c(day, date, year)) %>%
+  group_by(month, wy) %>%
+  summarize(across(everything(), mean))
+
+compruns_mwy_post <- compruns_mwy_post %>%
+  pivot_longer(cols = !c(month, wy), names_to = "sim", values_to = "flow")
+
+post <- compruns_mwy_post %>%
+  subset(month == 8) %>%
+  ggplot(aes(x = sim, y = flow)) +
+  geom_boxplot() +
+  labs(title = "Post-Calibration", x = "Parameter Set", y = "August Streamflow") +
+  theme_minimal()
+
+# Combine the pre and post calibration plots
+pre + post
+```
+
+
+We chose to design a metric based on low flow duration days since the duration of low flow conditions is a key aspect of streamflow that has significant ecological and water management implications. Low flow conditions can impact aquatic habitats, water quality, and water availability for many uses like irrigation, drinking water supply, and recreational activities. 
+
+By examining the number of low flow days, we can assess the model's ability to capture the persistence and frequency of low flow conditions. This metric provides insights into the model's performance in simulating the duration of low flows, which is critical for understanding the potential impacts on aquatic ecosystems and water resource management.
+
+
+```{r}
+# Acceptable Outcomes
+threshold <- 0.3
+res_acc <- subset(res, combined_metric > threshold)
+
+# Create a weight for each parameter set based on its relative accuracy
+sum_acc <- sum(res_acc$combined_metric)
+res_acc$wt_acc <- res_acc$combined_metric / sum_acc
+
+# Generate a streamflow as a weighted average of all acceptable parameter sets
+msagel <- msage %>% 
+  pivot_longer(cols = !c(date, month, year, day, wy, obs), names_to = "sim", values_to = "flow")
+
+# Subset only acceptable runs
+msagel_acc <- subset(msagel, sim %in% res_acc$sim)
+
+# Join with weights from res_acc
+msagel_acc <- left_join(msagel_acc, res_acc, by = "sim")
+
+# Multiply flow by weight
+msagel_acc <- msagel_acc %>% 
+  mutate(flow_wt = flow * wt_acc)
+
+# Average streamflow for each day from all the runs using the weights
+aver_flow <- msagel_acc %>% 
+  group_by(date) %>% 
+  summarize(meanstr = sum(flow_wt))
+
+# Add water year information
+aver_flow$wy <- msage$wy
+
+# Plot the weighted average streamflow
+ggplot(aver_flow, aes(x = date, y = meanstr)) +
+  geom_line(color = "blue", size = 1) +
+  labs(x = "Date", y = "Streamflow (mm/day)", 
+       title = "Weighted Average Streamflow") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# Plot a subset of the weighted average streamflow for a specific water year
+wycheck <- 1985
+ggplot() +
+  geom_line(data = subset(aver_flow, wy == wycheck), 
+            aes(x = date, y = meanstr, color = "Weighted Average"), size = 1) +
+  geom_line(data = subset(msage, wy == wycheck), 
+            aes(x = date, y = obs, color = "Observed"), size = 1, linetype = "dashed") +
+  labs(x = "Date", y = "Streamflow (mm/day)", 
+       title = paste("Streamflow Comparison for Water Year", wycheck),
+       color = "Legend") +
+  scale_color_manual(values = c("Weighted Average" = "blue", "Observed" = "black")) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),
+        legend.position = "bottom")
+```
+
+
+

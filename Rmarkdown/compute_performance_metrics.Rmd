@@ -1,5 +1,7 @@
 ---
 title: "compute_metrics"
+author: "Maxwell Patterson"
+date: 2024-04-23
 output: html_document
 ---
 
@@ -11,6 +13,7 @@ library(tidyverse)
 library(purrr)
 library(ggpubr)
 ```
+
 # Comparing model and observed time series output
 
 When evaluating a model - Always plot first
@@ -37,7 +40,9 @@ sager = read.table("../Data/sager.txt", header=T)
 head(sager)
 
 # add date
-sager = sager %>% mutate(date = paste(day,month,year, sep="/"))
+sager = sager %>% 
+  mutate(date = paste(day,month,year, sep="/"))
+
 sager$date = as.Date(sager$date,"%d/%m/%Y")
 
 # plot
@@ -45,7 +50,8 @@ sagerl = sager %>% pivot_longer(cols=c("model","obs"), names_to="source",
                                   values_to="flow")
 
 # basic plot
-ggplot(sagerl, aes(date, flow, col=source, linetype=source))+geom_line()
+ggplot(sagerl, aes(date, flow, col=source, linetype=source)) +
+  geom_line()
 
 # change axis to get a closer look at performance at low values
 # when you have high dynamic range (lots of large and small values), taking log can help
@@ -260,4 +266,31 @@ ggplot(subset(msagel, run == best$run), aes(date, flow)) + geom_line()
 
 
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
