@@ -189,8 +189,6 @@ rownames(sens_P_maxpop$T)=c("r","K")
 sens_P_maxpop$T
 
 
-
-
 # create another one for max year
 sens_P_threshyear = sensitivity::tell(sens_P,allres$threshyear)
 # first-order indices (main effect without co-variance)
