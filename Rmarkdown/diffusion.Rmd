@@ -20,7 +20,7 @@ source("../R/diffusion.R")
 
 # run our diffusion model (iterative difference equation) with initial concentration of 10, for 8 timestep (size 1m), and 10 space steps (size 1s)
 # using diffusion parameters 0.5 s/m2, 10 m2
-result = diff1(initialC=10, nx=10, dx=1, nt=8, dt=1, D=0.5, area=10)
+result = diff1(initialC=10, nx=10, dx=1, nt=30, dt=1, D=0.5, area=10)
 
 # a list is returned with our 3 data frames for concentration (conc), qin and qout
 result
