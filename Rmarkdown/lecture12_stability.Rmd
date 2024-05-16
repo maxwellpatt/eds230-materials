@@ -131,7 +131,7 @@ using proportional harvest,  what rate leads to a stable forest
 source("../R/dharvest.R")
 tm = seq(from=1, to=100)
 Cinitial = 30
-gps = list(harv=0.1, K=1000, r=0.05, mincarbon=20)
+gps = list(harv=0.05, K=1000, r=0.05, mincarbon=20)
 res = ode(Cinitial,tm, dharvest, gps, method="euler")
 colnames(res)=c("time","carbon")
 
